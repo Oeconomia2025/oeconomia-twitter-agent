@@ -91,7 +91,9 @@ def generate_content(
     else:
         image_instruction = (
             'Include a vivid "image_prompt" suitable for DALL-E 3. '
-            "Describe a scene, not text. Focus on atmosphere, lighting, and symbolism."
+            "Describe an abstract scene using organic forms, flowing energy, light particles, nebula clouds, and aurora waves. "
+            "NEVER describe any cryptocurrency logos, coins, diamond shapes, or recognizable brand symbols. "
+            "Focus on atmosphere, lighting, and mood — not specific objects."
         )
 
     user_prompt = (

@@ -53,9 +53,9 @@ You MUST respond with valid JSON only. No markdown, no code fences, no explanati
 """
 
 DALLE_STYLE_ANCHOR = (
-    "Dark cinematic DeFi digital art. "
+    "Dark cinematic abstract digital art. "
     "Neon teal and amber accents on deep black/charcoal. "
-    "No text, no words, no letters, no UI overlays. "
-    "Do NOT include any cryptocurrency logos, Ethereum diamonds, Bitcoin symbols, or any recognizable protocol logos. "
-    "Use abstract geometric shapes, energy flows, and atmospheric lighting instead."
+    "No text, no words, no letters, no UI overlays, no logos, no symbols, no coins, no currency icons, no diamond shapes. "
+    "Only use organic flowing forms, light particles, smooth gradients, nebula clouds, aurora waves, and soft glowing orbs. "
+    "Absolutely zero recognizable brand imagery of any kind."
 )
