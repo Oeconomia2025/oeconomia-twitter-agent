@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def _apply_logo_watermark(filepath: Path) -> None:
-    """Overlay the OEC logo on the bottom-right corner of the image."""
+    """Overlay the OEC logo on the bottom-right corner of the image, preserving aspect ratio."""
     if not LOGO_PATH.exists():
         logger.warning("Logo file not found at %s — skipping watermark", LOGO_PATH)
         return
@@ -32,14 +32,16 @@ def _apply_logo_watermark(filepath: Path) -> None:
         base = PILImage.open(filepath).convert("RGBA")
         logo = PILImage.open(LOGO_PATH).convert("RGBA")
 
-        # Resize logo to ~12% of the image width
-        logo_size = int(base.width * 0.12)
-        logo = logo.resize((logo_size, logo_size), PILImage.LANCZOS)
+        # Resize logo width to ~18% of image width, preserve aspect ratio
+        logo_w = int(base.width * 0.18)
+        aspect = logo.height / logo.width
+        logo_h = int(logo_w * aspect)
+        logo = logo.resize((logo_w, logo_h), PILImage.LANCZOS)
 
         # Position: bottom-right with padding
-        padding = int(base.width * 0.02)
-        x = base.width - logo_size - padding
-        y = base.height - logo_size - padding
+        padding = int(base.width * 0.025)
+        x = base.width - logo_w - padding
+        y = base.height - logo_h - padding
 
         # Paste with transparency
         base.paste(logo, (x, y), logo)
