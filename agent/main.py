@@ -88,6 +88,7 @@ def _append_post_log(entry: dict) -> Optional[str]:
         "image_style_tags": entry.get("image_style_tags", []),
         "tweet_id": entry.get("tweet_id"),
         "image_path": entry.get("image_path"),
+        "image_url": entry.get("image_url"),
         "status": entry.get("status", "pending"),
         "created_at": entry.get("timestamp", datetime.now(timezone.utc).isoformat()),
         "posted_at": datetime.now(timezone.utc).isoformat() if entry.get("tweet_id") else None,
@@ -156,11 +157,12 @@ def run_post_cycle(post_type: str = "technical") -> bool:
 
     # 2. Handle image based on image_mode (from agent_state)
     image_path: Optional[Path] = None
+    image_url: Optional[str] = None
     image_status = "skipped"
 
     if image_mode == "dalle" and image_prompt:
         # Auto-generate via DALL-E 3
-        image_path = generate_image(image_prompt)
+        image_path, image_url = generate_image(image_prompt)
         image_status = "generated" if image_path else "policy_blocked"
 
     elif image_mode == "manual" and image_prompt:
@@ -183,6 +185,7 @@ def run_post_cycle(post_type: str = "technical") -> bool:
             "post_type": actual_post_type,
             "image_prompt": image_prompt,
             "image_path": str(image_path) if image_path else None,
+            "image_url": image_url,
             "tweet_id": None,
             "status": "failed",
         })
@@ -214,6 +217,7 @@ def run_post_cycle(post_type: str = "technical") -> bool:
         "post_type": actual_post_type,
         "image_prompt": image_prompt,
         "image_path": str(image_path) if image_path else None,
+        "image_url": image_url,
         "tweet_id": tweet_id,
         "status": status,
     })

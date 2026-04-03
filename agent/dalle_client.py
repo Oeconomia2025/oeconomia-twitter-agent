@@ -13,17 +13,33 @@ from typing import Optional
 import requests
 from openai import OpenAI, BadRequestError
 
-from config.settings import OPENAI_API_KEY, GENERATED_IMAGES_DIR
+from config.settings import OPENAI_API_KEY, GENERATED_IMAGES_DIR, get_supabase
 from config.brand_voice import DALLE_STYLE_ANCHOR
 
 logger = logging.getLogger(__name__)
+
+
+def _upload_to_supabase(filepath: Path, filename: str) -> Optional[str]:
+    """Upload image to Supabase Storage and return the public URL."""
+    try:
+        sb = get_supabase()
+        with open(filepath, "rb") as f:
+            sb.storage.from_("twitter-images").upload(
+                filename, f.read(), {"content-type": "image/png"}
+            )
+        public_url = sb.storage.from_("twitter-images").get_public_url(filename)
+        logger.info("Image uploaded to Supabase Storage: %s", filename)
+        return public_url
+    except Exception as e:
+        logger.warning("Failed to upload image to Supabase Storage: %s", e)
+        return None
 
 
 def generate_image(
     image_prompt: str,
     size: str = "1024x1024",
     quality: str = "standard",
-) -> Optional[Path]:
+) -> tuple[Optional[Path], Optional[str]]:
     """
     Generate an image with DALL-E 3 and save it locally.
 
@@ -35,15 +51,15 @@ def generate_image(
         quality: "standard" (~$0.040) or "hd" (~$0.080).
 
     Returns:
-        Path to the saved image file, or None on failure.
+        Tuple of (local_path, public_url) or (None, None) on failure.
     """
     if not OPENAI_API_KEY:
         logger.error("OPENAI_API_KEY not set — cannot generate image")
-        return None
+        return None, None
 
     if not image_prompt:
         logger.warning("Empty image_prompt — skipping DALL-E generation")
-        return None
+        return None, None
 
     # Prepend brand style anchor
     full_prompt = f"{DALLE_STYLE_ANCHOR} {image_prompt}"
@@ -78,7 +94,11 @@ def generate_image(
             f.write(img_response.content)
 
         logger.info("Image saved: %s (%d bytes)", filepath, len(img_response.content))
-        return filepath
+
+        # Upload to Supabase Storage
+        public_url = _upload_to_supabase(filepath, filename)
+
+        return filepath, public_url
 
     except BadRequestError as e:
         # Content policy violation — DALL-E refused the prompt
@@ -86,10 +106,10 @@ def generate_image(
             "DALL-E content policy block — image skipped. Reason: %s",
             str(e),
         )
-        return None
+        return None, None
     except requests.RequestException as e:
         logger.error("Failed to download generated image: %s", e)
-        return None
+        return None, None
     except Exception as e:
         logger.error("DALL-E generation failed: %s", e)
-        return None
+        return None, None

@@ -8,6 +8,7 @@ export interface TwitterPost {
   image_style_tags: string[];
   tweet_id: string | null;
   image_path: string | null;
+  image_url: string | null;
   status: string;
   impressions: number;
   likes: number;

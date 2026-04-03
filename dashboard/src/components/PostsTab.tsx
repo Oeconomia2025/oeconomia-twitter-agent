@@ -150,6 +150,18 @@ export function PostsTab({ posts, loading }: PostsTabProps) {
                         {post.tweet_text}
                       </p>
                     </div>
+                    {post.image_url && (
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider">
+                          Generated Image
+                        </label>
+                        <img
+                          src={post.image_url}
+                          alt="Generated"
+                          className="mt-2 rounded-lg max-h-64 object-contain border border-gray-700"
+                        />
+                      </div>
+                    )}
                     {post.image_prompt && (
                       <div>
                         <label className="text-xs text-gray-500 uppercase tracking-wider">
