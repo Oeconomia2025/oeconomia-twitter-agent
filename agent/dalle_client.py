@@ -11,12 +11,44 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+from PIL import Image as PILImage
 from openai import OpenAI, BadRequestError
 
-from config.settings import OPENAI_API_KEY, GENERATED_IMAGES_DIR, get_supabase
+from config.settings import OPENAI_API_KEY, GENERATED_IMAGES_DIR, get_supabase, DATA_DIR
 from config.brand_voice import DALLE_STYLE_ANCHOR
 
+LOGO_PATH = DATA_DIR / "oec-logo.png"
+
 logger = logging.getLogger(__name__)
+
+
+def _apply_logo_watermark(filepath: Path) -> None:
+    """Overlay the OEC logo on the bottom-right corner of the image."""
+    if not LOGO_PATH.exists():
+        logger.warning("Logo file not found at %s — skipping watermark", LOGO_PATH)
+        return
+
+    try:
+        base = PILImage.open(filepath).convert("RGBA")
+        logo = PILImage.open(LOGO_PATH).convert("RGBA")
+
+        # Resize logo to ~12% of the image width
+        logo_size = int(base.width * 0.12)
+        logo = logo.resize((logo_size, logo_size), PILImage.LANCZOS)
+
+        # Position: bottom-right with padding
+        padding = int(base.width * 0.02)
+        x = base.width - logo_size - padding
+        y = base.height - logo_size - padding
+
+        # Paste with transparency
+        base.paste(logo, (x, y), logo)
+
+        # Save back as RGB (PNG)
+        base.convert("RGB").save(filepath, "PNG")
+        logger.info("Logo watermark applied to %s", filepath.name)
+    except Exception as e:
+        logger.warning("Failed to apply logo watermark: %s", e)
 
 
 def _upload_to_supabase(filepath: Path, filename: str) -> Optional[str]:
@@ -94,6 +126,9 @@ def generate_image(
             f.write(img_response.content)
 
         logger.info("Image saved: %s (%d bytes)", filepath, len(img_response.content))
+
+        # Apply OEC logo watermark
+        _apply_logo_watermark(filepath)
 
         # Upload to Supabase Storage
         public_url = _upload_to_supabase(filepath, filename)
