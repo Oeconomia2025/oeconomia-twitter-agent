@@ -2,11 +2,12 @@
 Oeconomia Twitter Agent — Scheduler
 Uses APScheduler BackgroundScheduler to post tweets at random times
 between 8 AM and 10 PM, alternating between technical and hype post types.
+Writes next_post_times to Supabase agent_state for the dashboard.
 """
 
 import logging
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.date import DateTrigger
@@ -16,6 +17,7 @@ from config.settings import (
     POST_FREQUENCY_MIN,
     POST_FREQUENCY_MAX,
     TIMEZONE,
+    get_supabase,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +61,26 @@ def _get_random_times(
     return times
 
 
+def _write_next_post_times(times: list[datetime], post_types: list[str]) -> None:
+    """Write the next scheduled post times to Supabase agent_state."""
+    try:
+        sb = get_supabase()
+        next_times = [
+            {
+                "time": t.isoformat(),
+                "post_type": pt,
+            }
+            for t, pt in zip(times, post_types)
+        ]
+        sb.table("agent_state").update({
+            "next_post_times": next_times,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", 1).execute()
+        logger.info("Wrote %d next_post_times to Supabase", len(next_times))
+    except Exception as e:
+        logger.warning("Failed to write next_post_times to Supabase: %s", e)
+
+
 def schedule_daily_posts(run_post_fn) -> BackgroundScheduler:
     """
     Create and start a scheduler that fires run_post_fn at random times today.
@@ -89,9 +111,13 @@ def schedule_daily_posts(run_post_fn) -> BackgroundScheduler:
 
     _scheduler = BackgroundScheduler(timezone=TIMEZONE)
 
+    # Build list of post types for each scheduled time
+    scheduled_post_types = []
+
     for i, scheduled_time in enumerate(times):
         # Alternate post types
         post_type = POST_TYPES[i % len(POST_TYPES)]
+        scheduled_post_types.append(post_type)
 
         _scheduler.add_job(
             run_post_fn,
@@ -108,6 +134,9 @@ def schedule_daily_posts(run_post_fn) -> BackgroundScheduler:
             scheduled_time.strftime("%I:%M %p %Z"),
             post_type,
         )
+
+    # Write next_post_times to Supabase for the dashboard
+    _write_next_post_times(times, scheduled_post_types)
 
     # Schedule the next day's planning at midnight + 1 min
     tz = pytz.timezone(TIMEZONE)

@@ -1,13 +1,12 @@
 """
 Oeconomia Twitter Agent — Content Generator
 Uses Claude API to generate tweets + image prompts as structured JSON.
-Includes dedup logic against post_log.json (50-char prefix match within 30 days).
+Includes dedup logic against Supabase twitter_posts table (50-char prefix match within 30 days).
 """
 
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Optional
 
 import anthropic
@@ -16,48 +15,42 @@ from config.settings import (
     ANTHROPIC_API_KEY,
     CLAUDE_MODEL,
     IMAGE_MODE,
-    POST_LOG_PATH,
+    get_supabase,
 )
 from config.brand_voice import BRAND_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Post log helpers
+# Post log helpers (Supabase)
 # ---------------------------------------------------------------------------
 
-def _load_post_log() -> list[dict]:
-    """Load existing post log from disk."""
-    if not POST_LOG_PATH.exists():
-        return []
+
+def _load_recent_posts(window_days: int = 30) -> list[dict]:
+    """Load recent posts from Supabase twitter_posts table."""
     try:
-        with open(POST_LOG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        logger.warning("Could not parse post_log.json — starting fresh")
+        sb = get_supabase()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=window_days)).isoformat()
+        result = (
+            sb.table("twitter_posts")
+            .select("tweet_text, created_at")
+            .gte("created_at", cutoff)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        logger.warning("Could not load posts from Supabase for dedup: %s", e)
         return []
 
 
-def _is_duplicate(tweet_text: str, log: list[dict], window_days: int = 30) -> bool:
+def _is_duplicate(tweet_text: str, recent_posts: list[dict]) -> bool:
     """
     Check if the first 50 characters of tweet_text match any post
-    from the last `window_days` days.
+    from the recent posts list.
     """
     prefix = tweet_text[:50].strip().lower()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
 
-    for entry in log:
-        entry_time_str = entry.get("timestamp", "")
-        try:
-            entry_time = datetime.fromisoformat(entry_time_str)
-            if entry_time.tzinfo is None:
-                entry_time = entry_time.replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError):
-            continue
-
-        if entry_time < cutoff:
-            continue
-
+    for entry in recent_posts:
         existing_prefix = entry.get("tweet_text", "")[:50].strip().lower()
         if existing_prefix == prefix:
             return True
@@ -89,7 +82,7 @@ def generate_content(
         return None
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    post_log = _load_post_log()
+    recent_posts = _load_recent_posts()
 
     # Build the user prompt
     image_instruction = ""
@@ -140,7 +133,7 @@ def generate_content(
                 continue
 
             # Dedup check
-            if _is_duplicate(tweet_text, post_log):
+            if _is_duplicate(tweet_text, recent_posts):
                 logger.info(
                     "Duplicate detected (50-char prefix match) — retrying"
                 )

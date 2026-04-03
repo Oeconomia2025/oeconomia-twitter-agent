@@ -38,6 +38,31 @@ TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # ---------------------------------------------------------------------------
+# Supabase
+# ---------------------------------------------------------------------------
+SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
+
+# ---------------------------------------------------------------------------
+# Supabase client (lazy init to avoid import errors if not configured)
+# ---------------------------------------------------------------------------
+_supabase_client = None
+
+
+def get_supabase():
+    """Return a Supabase client instance (service_role for full write access)."""
+    global _supabase_client
+    if _supabase_client is None:
+        if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+            raise RuntimeError(
+                "SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env"
+            )
+        from supabase import create_client
+        _supabase_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    return _supabase_client
+
+
+# ---------------------------------------------------------------------------
 # Agent behavior
 # ---------------------------------------------------------------------------
 DRY_RUN: bool = os.getenv("DRY_RUN", "true").lower() in ("true", "1", "yes")
